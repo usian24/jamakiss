@@ -1,0 +1,144 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+
+  /* Paleta inspirada directamente en el logo de JamaKiss (Flor de Jamaica, Seda Rosada y Hoja Botánica) */
+  --color-cream-50: #FAF8F5;
+  --color-cream-100: #F5F1EB;
+  --color-blush-50: #FFF5F8;
+  --color-blush-100: #FCE8EF;
+  --color-blush-200: #F7CDDC;
+  --color-blush-300: #EEA3BC;
+  --color-hibiscus-500: #C82557;
+  --color-hibiscus-600: #A51942;
+  --color-hibiscus-700: #8E1436;
+  --color-hibiscus-800: #72112E;
+  --color-plum-600: #7D3252;
+  --color-plum-700: #652540;
+  --color-sage-50: #F2F5EC;
+  --color-sage-200: #D4DFC1;
+  --color-sage-700: #556638;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: #FAF8F5;
+    color: #28161C;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+.font-brand {
+  font-family: var(--font-serif);
+}
+
+/* Integración limpia del logo sobre fondos crema/blanco sin recuadros duros */
+.logo-blend {
+  mix-blend-mode: multiply;
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Orbe Flotante JamaKiss */
+.floating-orb-button {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), filter 0.35s ease;
+  filter: drop-shadow(0 10px 24px rgba(142, 20, 54, 0.34));
+}
+
+.floating-orb-button:hover {
+  transform: translateY(-3px) scale(1.07);
+  filter: drop-shadow(0 14px 32px rgba(200, 37, 87, 0.46));
+}
+
+.orb-halo {
+  position: absolute;
+  inset: -10px;
+  border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
+  background: radial-gradient(circle, rgba(226, 107, 138, 0.44) 0%, rgba(142, 20, 54, 0.18) 48%, rgba(142, 20, 54, 0) 74%);
+  animation: dynamicAura 2.6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes dynamicAura {
+  0% {
+    transform: scale(0.92) rotate(0deg);
+    border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.14) rotate(90deg);
+    border-radius: 58% 42% 38% 62% / 60% 55% 45% 40%;
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(1.22) rotate(180deg);
+    border-radius: 35% 65% 55% 45% / 40% 65% 35% 60%;
+    opacity: 0.72;
+  }
+}
+
+.orb-canvas {
+  width: 58px;
+  height: 58px;
+  border-radius: 40% 60% 55% 45% / 50% 42% 58% 50%;
+  display: block;
+  pointer-events: none;
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.35), 0 4px 16px rgba(72, 11, 30, 0.25);
+  animation: morphContainer 3.4s ease-in-out infinite alternate;
+}
+
+@keyframes morphContainer {
+  0% { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%; }
+  33% { border-radius: 70% 30% 46% 54% / 30% 29% 71% 70%; }
+  66% { border-radius: 64% 36% 42% 58% / 56% 44% 56% 44%; }
+  100% { border-radius: 40% 60% 55% 45% / 50% 42% 58% 50%; }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Estilos de impresión para la Ficha de Tamizaje JamaKiss */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #screening-sheet-printable,
+  #screening-sheet-printable * {
+    visibility: visible;
+  }
+  #screening-sheet-printable {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 16px !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

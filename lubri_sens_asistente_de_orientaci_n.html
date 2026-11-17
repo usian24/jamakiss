@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-[#FAFAFA]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUBRI-SENS | Sistema de Orientación Colorimétrica y Salud Obstétrica</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js para renderizado WebGL procedural del Orbe 3D fluido -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        mora: {
+                            50: '#FDF2F7',
+                            100: '#FCE7F0',
+                            200: '#F9D0E3',
+                            300: '#F4A9CB',
+                            400: '#EC73A8',
+                            500: '#DE4584',
+                            600: '#B82260',
+                            700: '#8E1746', // Tono característico de obstetricia / moras intensas
+                            800: '#73163B',
+                            900: '#5A122E',
+                            950: '#3D071C',
+                        },
+                        neutral: {
+                            base: '#FFFFFF',
+                            surface: '#FDFDFD',
+                            card: '#F6F6F8',
+                            border: '#E8E8EC',
+                            muted: '#80808A',
+                            subtle: '#63636E',
+                            text: '#16161A',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Inter', 'Segoe UI', 'sans-serif'],
+                    },
+                    transitionTimingFunction: {
+                        apple: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Microanimaciones de entrada Apple */
+        .fade-in-up {
+            animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Orbe Flotante Compacto de Alta Dinámica */
+        .floating-orb-button {
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            filter: drop-shadow(0 8px 24px rgba(142, 23, 70, 0.38));
+        }
+
+        .floating-orb-button:hover {
+            transform: translateY(-3px) scale(1.08);
+            filter: drop-shadow(0 14px 34px rgba(222, 69, 132, 0.55));
+        }
+
+        .orb-container {
+            position: relative;
+            width: 54px;
+            height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .orb-halo {
+            position: absolute;
+            inset: -12px;
+            border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
+            background: radial-gradient(circle, rgba(222, 69, 132, 0.45) 0%, rgba(142, 23, 70, 0.22) 45%, rgba(142, 23, 70, 0) 72%);
+            animation: dynamicAura 2.2s ease-in-out infinite alternate;
+            pointer-events: none;
+        }
+
+        @keyframes dynamicAura {
+            0% { 
+                transform: scale(0.9) rotate(0deg); 
+                border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
+                opacity: 0.6; 
+            }
+            50% { 
+                transform: scale(1.15) rotate(90deg); 
+                border-radius: 58% 42% 38% 62% / 60% 55% 45% 40%;
+                opacity: 0.95; 
+            }
+            100% { 
+                transform: scale(1.25) rotate(180deg); 
+                border-radius: 35% 65% 55% 45% / 40% 65% 35% 60%;
+                opacity: 0.7; 
+            }
+        }
+
+        #webglCanvas {
+            width: 54px;
+            height: 54px;
+            border-radius: 40% 60% 55% 45% / 50% 42% 58% 50%;
+            display: block;
+            pointer-events: none;
+            box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.35),
+                        0 2px 14px rgba(0, 0, 0, 0.25);
+            animation: morphContainer 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes morphContainer {
+            0% { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%; }
+            33% { border-radius: 70% 30% 46% 54% / 30% 29% 71% 70%; }
+            66% { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; }
+            100% { border-radius: 40% 60% 55% 45% / 50% 42% 58% 50%; }
+        }
+
+        /* Drawer / Ventana del Asistente Flotante */
+        .assistant-panel {
+            transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                        transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                        visibility 0.4s;
+        }
+
+        .assistant-panel.hidden-state {
+            opacity: 0;
+            transform: translateY(24px) scale(0.96);
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .assistant-panel.open-state {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        /* Barra de desplazamiento mínima */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E5E5EA;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #B82260;
+        }
+    </style>
+</head>
+<body class="min-h-full flex flex-col bg-[#FAFAFA] text-neutral-text font-sans antialiased selection:bg-mora-100 selection:text-mora-900">
+
+    <!-- Navegación Superior Estilo Cupertino -->
+    <header class="sticky top-0 z-30 bg-white/85 backdrop-blur-xl border-b border-neutral-border/80">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-mora-800 to-mora-600 flex items-center justify-center text-white shadow-sm">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <circle cx="12" cy="12" r="9"/>
+                        <path d="M12 7v5l3 2"/>
+                    </svg>
+                </div>
+                <div>
+                    <span class="font-semibold tracking-tight text-neutral-text text-sm">LUBRI-SENS</span>
+                    <span class="text-xs text-neutral-muted hidden sm:inline ml-2 pl-2 border-l border-neutral-border">Salud y Orientación Obstétrica</span>
+                </div>
+            </div>
+
+            <!-- Selector de Módulo -->
+            <nav class="flex items-center p-1 bg-neutral-card rounded-full border border-neutral-border/60">
+                <button onclick="setTab('analyzer')" id="nav-analyzer" class="px-3.5 py-1 rounded-full text-xs font-medium text-neutral-text bg-white shadow-xs transition-all duration-300">
+                    Analizador Visual
+                </button>
+                <button onclick="setTab('guide')" id="nav-guide" class="px-3.5 py-1 rounded-full text-xs font-medium text-neutral-muted hover:text-neutral-text transition-all duration-300">
+                    Guía Clínica
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Contenedor Principal -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- ============================================== -->
+        <!-- MÓDULO 1: ANALIZADOR COLORIMÉTRICO DE PH       -->
+        <!-- ============================================== -->
+        <section id="view-analyzer" class="space-y-6 fade-in-up">
+            <div class="max-w-xl">
+                <h1 class="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-text">
+                    Evaluación Colorimétrica
+                </h1>
+                <p class="mt-1 text-xs sm:text-sm text-neutral-subtle leading-relaxed">
+                    Compara la muestra obtenida con la escala cromática para obtener una lectura de pH y su correspondencia fisiológica.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- Entrada visual / Carga -->
+                <div class="lg:col-span-7 bg-white rounded-2xl border border-neutral-border p-6 shadow-xs space-y-6">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-neutral-subtle tracking-wide uppercase">Registro de Muestra</span>
+                        <span class="text-[11px] font-medium text-mora-700 bg-mora-50 px-2 py-0.5 rounded-full border border-mora-200">
+                            Espectro 3.8 — 6.5
+                        </span>
+                    </div>
+
+                    <!-- Cuadro de subida de imagen -->
+                    <div id="dropZone" class="relative group border border-dashed border-neutral-300 hover:border-mora-500 rounded-xl p-6 sm:p-8 flex flex-col items-center justify-center text-center transition-all bg-neutral-surface cursor-pointer">
+                        <input type="file" id="imageInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                        
+                        <div id="uploadPlaceholder" class="flex flex-col items-center gap-2.5">
+                            <div class="w-10 h-10 rounded-full bg-neutral-card border border-neutral-border flex items-center justify-center text-neutral-muted group-hover:text-mora-700 group-hover:border-mora-200 transition-colors">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <circle cx="12" cy="13" r="3" stroke-width="1.8"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-neutral-text">Cargar captura de la muestra</p>
+                                <p class="text-[11px] text-neutral-muted">Luz neutra difusa para mayor precisión</p>
+                            </div>
+                        </div>
+
+                        <!-- Vista previa de imagen -->
+                        <div id="previewContainer" class="hidden w-full flex-col items-center">
+                            <div class="relative max-h-48 rounded-lg overflow-hidden border border-neutral-border bg-neutral-card">
+                                <img id="uploadedImage" src="" alt="Muestra" class="object-contain max-h-48 w-auto mx-auto" />
+                                <div id="scanOverlay" class="absolute inset-0 bg-mora-700/15 pointer-events-none hidden border-y border-mora-500 animate-pulse"></div>
+                            </div>
+                            <button type="button" id="btnRemoveImage" class="mt-2.5 text-[11px] text-neutral-muted hover:text-neutral-text transition-colors">
+                                Descartar imagen
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Muestreo rápido de tonos -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-medium text-neutral-subtle">Referencia de color</span>
+                            <span id="currentColorLabel" class="text-xs font-mono text-neutral-text">Hex: #C4BA42</span>
+                        </div>
+
+                        <div class="grid grid-cols-5 gap-2">
+                            <button onclick="setSample('#D8A437', 3.8, 'Ácido Fisiológico')" class="sample-btn group p-2 rounded-xl border border-neutral-border flex flex-col items-center gap-1.5 transition-all hover:border-neutral-300">
+                                <span class="w-5 h-5 rounded-full shadow-xs" style="background-color: #D8A437;"></span>
+                                <span class="text-[11px] font-medium text-neutral-text">3.8</span>
+                            </button>
+                            <button onclick="setSample('#C4BA42', 4.2, 'Ácido Habitual')" class="sample-btn active ring-2 ring-mora-700 group p-2 rounded-xl border border-neutral-border flex flex-col items-center gap-1.5 transition-all">
+                                <span class="w-5 h-5 rounded-full shadow-xs" style="background-color: #C4BA42;"></span>
+                                <span class="text-[11px] font-medium text-neutral-text">4.2</span>
+                            </button>
+                            <button onclick="setSample('#89B854', 4.8, 'Rango Intermedio')" class="sample-btn group p-2 rounded-xl border border-neutral-border flex flex-col items-center gap-1.5 transition-all hover:border-neutral-300">
+                                <span class="w-5 h-5 rounded-full shadow-xs" style="background-color: #89B854;"></span>
+                                <span class="text-[11px] font-medium text-neutral-text">4.8</span>
+                            </button>
+                            <button onclick="setSample('#42A27F', 5.5, 'Tendencia Alcalina')" class="sample-btn group p-2 rounded-xl border border-neutral-border flex flex-col items-center gap-1.5 transition-all hover:border-neutral-300">
+                                <span class="w-5 h-5 rounded-full shadow-xs" style="background-color: #42A27F;"></span>
+                                <span class="text-[11px] font-medium text-neutral-text">5.5</span>
+                            </button>
+                            <button onclick="setSample('#266C7E', 6.5, 'pH Elevado')" class="sample-btn group p-2 rounded-xl border border-neutral-border flex flex-col items-center gap-1.5 transition-all hover:border-neutral-300">
+                                <span class="w-5 h-5 rounded-full shadow-xs" style="background-color: #266C7E;"></span>
+                                <span class="text-[11px] font-medium text-neutral-text">6.5</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button onclick="runAnalysis()" class="w-full py-2.5 rounded-xl bg-neutral-text text-white text-xs font-medium hover:bg-neutral-900 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                        <span>Analizar Tonalidad</span>
+                    </button>
+                </div>
+
+                <!-- Reporte Clínico Visual -->
+                <div class="lg:col-span-5 bg-white rounded-2xl border border-neutral-border p-6 shadow-xs flex flex-col justify-between min-h-[440px]">
+                    <div>
+                        <div class="flex items-center justify-between border-b border-neutral-border pb-3">
+                            <span class="text-xs font-semibold text-neutral-subtle uppercase tracking-wider">Interpretación</span>
+                            <span id="analysisBadge" class="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                Fisiológico
+                            </span>
+                        </div>
+
+                        <div class="mt-5 flex items-baseline justify-between">
+                            <div>
+                                <span class="text-[11px] text-neutral-muted uppercase tracking-wider">pH Estimado</span>
+                                <div class="flex items-baseline gap-1 mt-1">
+                                    <span id="resultPhValue" class="text-3xl font-semibold tracking-tight text-neutral-text">4.2</span>
+                                    <span class="text-xs text-neutral-muted">/ 14</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[11px] text-neutral-muted uppercase tracking-wider">Estado</span>
+                                <p id="resultPhCategory" class="text-xs font-medium text-mora-800 mt-1">Ácido Habitual</p>
+                            </div>
+                        </div>
+
+                        <!-- Barra de Escala Gradual -->
+                        <div class="mt-6">
+                            <div class="flex justify-between text-[10px] font-mono text-neutral-muted mb-1.5">
+                                <span>3.8</span>
+                                <span>4.5</span>
+                                <span>5.2</span>
+                                <span>6.5</span>
+                            </div>
+                            <div class="relative h-2 w-full rounded-full overflow-hidden bg-gradient-to-r from-[#D8A437] via-[#89B854] to-[#266C7E]">
+                                <div id="scaleMarker" class="absolute top-0 bottom-0 w-1.5 bg-white border border-neutral-800 rounded-full transform -translate-x-1/2 transition-all duration-500" style="left: 20%;"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-neutral-muted mt-1.5">
+                                <span>Flora comensal estable</span>
+                                <span>Zona alcalina</span>
+                            </div>
+                        </div>
+
+                        <!-- Detalle Contextual -->
+                        <div class="mt-5 p-3.5 rounded-xl bg-neutral-surface border border-neutral-border text-xs leading-relaxed space-y-1.5">
+                            <p class="font-medium text-neutral-text" id="resultInterpretationTitle">
+                                Equilibrio de Flora Preservado
+                            </p>
+                            <p class="text-neutral-subtle" id="resultInterpretationText">
+                                El valor se ubica dentro del rango ácido habitual en mujeres en edad fértil (3.8 a 4.5), lo que refleja la protección activa generada por los lactobacilos.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Invocar asistente con este contexto -->
+                    <div class="pt-5 border-t border-neutral-border">
+                        <button onclick="openChatWithContext()" class="w-full py-2 px-3 rounded-xl bg-mora-50 hover:bg-mora-100/80 text-mora-800 text-xs font-medium transition-colors flex items-center justify-center gap-2 border border-mora-200">
+                            <span>Consultar detalles con el Asistente</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- MÓDULO 2: GUÍA DE SALUD OBSTÉTRICA PROFUNDA    -->
+        <!-- ============================================== -->
+        <section id="view-guide" class="hidden space-y-6 fade-in-up">
+            <div class="max-w-2xl">
+                <h1 class="text-xl sm:text-2xl font-semibold tracking-tight text-neutral-text">
+                    Salud Fisiológica y Microbiota
+                </h1>
+                <p class="mt-1 text-xs sm:text-sm text-neutral-subtle leading-relaxed">
+                    Fundamentos de la Facultad de Obstetricia para comprender los mecanismos de protección vaginal y los criterios para una consulta oportuna.
+                </p>
+            </div>
+
+            <!-- Artículos Clínicos Detallados -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                
+                <article class="bg-white rounded-2xl border border-neutral-border p-5 shadow-xs flex flex-col justify-between">
+                    <div class="space-y-3">
+                        <div class="w-8 h-8 rounded-lg bg-mora-50 text-mora-700 flex items-center justify-center border border-mora-200">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <circle cx="12" cy="12" r="9" stroke-width="1.8"/>
+                                <path d="M12 8v8M8 12h8" stroke-width="1.8" stroke-linecap="round"/>
+                            </svg>
+                        </div>
+                        <h2 class="text-sm font-semibold text-neutral-text">La Barrera de Lactobacilos</h2>
+                        <p class="text-xs text-neutral-subtle leading-relaxed">
+                            Los <em>Lactobacillus crispatus</em> y <em>jensenii</em> metabolizan el glucógeno del epitelio para sintetizar ácido láctico y peróxido de hidrógeno. Este microambiente ácido (pH 3.8 - 4.5) inhibe bacterias anaerobias y microorganismos patógenos.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-neutral-border text-[11px] font-medium text-mora-700">
+                        Inmunidad mucosal primaria
+                    </div>
+                </article>
+
+                <article class="bg-white rounded-2xl border border-neutral-border p-5 shadow-xs flex flex-col justify-between">
+                    <div class="space-y-3">
+                        <div class="w-8 h-8 rounded-lg bg-mora-50 text-mora-700 flex items-center justify-center border border-mora-200">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                        </div>
+                        <h2 class="text-sm font-semibold text-neutral-text">Variaciones no Infecciosas</h2>
+                        <p class="text-xs text-neutral-subtle leading-relaxed">
+                            El pH se eleva de manera transitoria tras el coito (el semen tiene un pH de 7.2 a 8.0) o durante la menstruación (sangre pH ~7.4). Estas elevaciones son normales y se reequilibran espontáneamente en horas.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-neutral-border text-[11px] font-medium text-mora-700">
+                        Fluctuaciones cíclicas
+                    </div>
+                </article>
+
+                <article class="bg-white rounded-2xl border border-neutral-border p-5 shadow-xs flex flex-col justify-between">
+                    <div class="space-y-3">
+                        <div class="w-8 h-8 rounded-lg bg-mora-50 text-mora-700 flex items-center justify-center border border-mora-200">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                        </div>
+                        <h2 class="text-sm font-semibold text-neutral-text">Criterios de Valoración</h2>
+                        <p class="text-xs text-neutral-subtle leading-relaxed">
+                            Si se percibe un olor persistente tipo amina, prurito vulvar, dispareunia o alteraciones francas en la textura del flujo (grumos blanquecinos o tono verdoso), se debe acudir a consulta para evaluación directa de frotis.
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-neutral-border text-[11px] font-medium text-mora-700">
+                        Atención obstétrica oportuna
+                    </div>
+                </article>
+
+            </div>
+
+            <!-- Tabla de Referencias de pH -->
+            <div class="bg-white rounded-2xl border border-neutral-border p-5 sm:p-6 shadow-xs space-y-4">
+                <h3 class="text-sm font-semibold text-neutral-text">Guía Rápida de pH en Salud Reproductiva</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-neutral-border text-neutral-muted">
+                                <th class="pb-2 font-medium">Estado / Contexto</th>
+                                <th class="pb-2 font-medium">Rango Típico</th>
+                                <th class="pb-2 font-medium">Características Fisiológicas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-border text-neutral-text">
+                            <tr>
+                                <td class="py-2.5 font-medium">Mujer en edad reproductiva</td>
+                                <td class="py-2.5 text-mora-700 font-mono">3.8 — 4.5</td>
+                                <td class="py-2.5 text-neutral-subtle">Óptimo. Predominio de lactobacilos protectores.</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 font-medium">Fase postcoital inmediata</td>
+                                <td class="py-2.5 text-mora-700 font-mono">6.5 — 7.5</td>
+                                <td class="py-2.5 text-neutral-subtle">Alcalinización temporal por líquido seminal. Autolimitado.</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 font-medium">Flujo menstrual</td>
+                                <td class="py-2.5 text-mora-700 font-mono">7.2 — 7.4</td>
+                                <td class="py-2.5 text-neutral-subtle">El pH hemático desplaza brevemente la acidez vaginal.</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 font-medium">Disbiosis / Vaginosis</td>
+                                <td class="py-2.5 text-mora-700 font-mono">&gt; 4.5</td>
+                                <td class="py-2.5 text-neutral-subtle">Descenso de bacilos y proliferación de anaerobios. Requiere valoración.</td>
+                            </tr>
+                            <tr>
+                                <td class="py-2.5 font-medium">Menopausia sin THS</td>
+                                <td class="py-2.5 text-mora-700 font-mono">5.0 — 6.5</td>
+                                <td class="py-2.5 text-neutral-subtle">Menor concentración de estrógenos y glucógeno en epitelio.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ============================================== -->
+    <!-- WIDGET FLOTANTE: ORBE OBSTÉTRICO & ASISTENTE   -->
+    <!-- ============================================== -->
+
+    <!-- Three.js CDN para renderizado 3D de Shaders -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Botón Orbe Flotante (Esquina Inferior Derecha) -->
+    <aside class="fixed bottom-6 right-6 z-50">
+        <button 
+            id="floatingOrbBtn" 
+            onclick="toggleAssistantDrawer()" 
+            class="floating-orb-button relative flex items-center justify-center focus:outline-none"
+            aria-label="Abrir asistente de orientación"
+        >
+            <div class="orb-container">
+                <div class="orb-halo"></div>
+                <canvas id="webglCanvas"></canvas>
+            </div>
+        </button>
+    </aside>
+
+    <!-- Ventana Flotante del Asistente -->
+    <div 
+        id="assistantDrawer" 
+        class="assistant-panel hidden-state fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[380px] h-[520px] bg-white/95 backdrop-blur-2xl rounded-2xl border border-neutral-border shadow-2xl flex flex-col overflow-hidden"
+    >
+        <!-- Encabezado del Asistente -->
+        <div class="px-4 py-3 border-b border-neutral-border flex items-center justify-between bg-white/60">
+            <div class="flex items-center gap-2.5">
+                <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-mora-800 to-mora-600 flex items-center justify-center text-white text-[10px]">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-xs font-semibold text-neutral-text">Asistente de Orientación</h3>
+                    <p class="text-[10px] text-neutral-muted">Obstetricia y Salud Fisiológica</p>
+                </div>
+            </div>
+            <button onclick="toggleAssistantDrawer()" class="text-neutral-muted hover:text-neutral-text transition-colors p-1" aria-label="Cerrar">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Área de Conversación -->
+        <div id="drawerMessages" class="flex-1 p-4 overflow-y-auto space-y-3.5">
+            <!-- Mensaje Inicial -->
+            <div class="flex items-start gap-2.5 max-w-[90%]">
+                <div class="w-5 h-5 rounded-full bg-mora-700 text-white flex items-center justify-center shrink-0 text-[10px] mt-0.5">
+                    <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <circle cx="12" cy="12" r="9" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div class="bg-neutral-card rounded-2xl rounded-tl-xs p-3 text-xs text-neutral-text leading-relaxed border border-neutral-border/60">
+                    Hola. Te acompaño a resolver cualquier duda sobre variaciones de pH, cambios en el flujo o el cuidado de tu microbiota con total reserva y empatía. ¿Qué deseas consultar hoy?
+                </div>
+            </div>
+        </div>
+
+        <!-- Preguntas Rápidas Plegables -->
+        <div class="px-3 py-2 bg-neutral-surface border-t border-neutral-border/60 flex gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
+            <button onclick="sendPreset('¿Por qué varía el pH sin haber infección?')" class="whitespace-nowrap px-2.5 py-1 rounded-full bg-white border border-neutral-border hover:border-mora-400 text-neutral-subtle transition-colors">
+                ¿Por qué varía el pH?
+            </button>
+            <button onclick="sendPreset('¿Cuándo debo acudir al obstetra?')" class="whitespace-nowrap px-2.5 py-1 rounded-full bg-white border border-neutral-border hover:border-mora-400 text-neutral-subtle transition-colors">
+                Signos de alarma
+            </button>
+            <button onclick="sendPreset('¿Cómo influye el semen en el pH vaginal?')" class="whitespace-nowrap px-2.5 py-1 rounded-full bg-white border border-neutral-border hover:border-mora-400 text-neutral-subtle transition-colors">
+                Efecto postcoital
+            </button>
+        </div>
+
+        <!-- Formulario de Consulta -->
+        <div class="p-3 bg-white border-t border-neutral-border">
+            <form id="drawerForm" onsubmit="handleDrawerSubmit(event)" class="flex items-center gap-2">
+                <input 
+                    type="text" 
+                    id="drawerInput" 
+                    placeholder="Escribe tu consulta..."
+                    class="flex-1 bg-neutral-card border border-neutral-border focus:border-mora-600 focus:bg-white rounded-xl px-3 py-2 text-xs text-neutral-text outline-none transition-all placeholder:text-neutral-muted"
+                    autocomplete="off"
+                />
+                <button 
+                    type="submit" 
+                    class="bg-mora-700 hover:bg-mora-800 text-white rounded-xl px-3.5 py-2 text-xs font-medium transition-colors shrink-0 shadow-xs active:scale-95"
+                >
+                    Enviar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Pie de Página -->
+    <footer class="bg-white border-t border-neutral-border py-4 mt-auto">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-muted gap-2">
+            <span>LUBRI-SENS • Facultad de Obstetricia UNHEVAL</span>
+            <span>Atención preventiva orientada al autocuidado</span>
+        </div>
+    </footer>
+
+    <!-- LÓGICA DE CONTROL -->
+    <script>
+        const state = {
+            currentPh: 4.2,
+            currentColor: '#C4BA42',
+            category: 'Ácido Habitual',
+            isDrawerOpen: false
+        };
+
+        // Base de conocimiento orientativa
+        const clinicalDialogue = [
+            {
+                triggers: ['varia', 'cambia', 'factores', 'por que', 'sin infeccion'],
+                reply: 'El pH vaginal es sensible a diversos momentos fisiológicos: el semen (pH 7-8), la menstruación (pH 7.4), las fases del ciclo ovárico y productos de higiene no balanceados pueden modificar el valor temporalmente sin representar una patología.'
+            },
+            {
+                triggers: ['alarma', 'cuando ir', 'urgencia', 'sintomas', 'medico', 'obstetra'],
+                reply: 'Se sugiere programar una cita profesional si notas prurito o escozor constante, olor similar a amina o pescado, cambios francos en la consistencia del flujo (grumoso o verdoso) o dolor durante las relaciones íntimas.'
+            },
+            {
+                triggers: ['semen', 'postcoital', 'relaciones', 'coito'],
+                reply: 'El líquido seminal es biológicamente alcalino para proteger a los espermatozoides de la acidez vaginal. Por ello, es común que una medición postcoital marque valores superiores a 6.0 durante algunas horas antes de normalizarse.'
+            },
+            {
+                triggers: ['infeccion', 'vaginosis', 'hongos', 'candidiasis'],
+                reply: 'En la vaginosis bacteriana suele observarse un pH superior a 4.5, mientras que en la candidiasis el pH con frecuencia permanece en rango ácido normal (4.0 - 4.5). Esta diferencia hace indispensable una evaluación en consultorio antes de aplicar cualquier fármaco.'
+            }
+        ];
+
+        // Cambio de sección
+        function setTab(tabId) {
+            ['analyzer', 'guide'].forEach(id => {
+                const section = document.getElementById(`view-${id}`);
+                const navBtn = document.getElementById(`nav-${id}`);
+                if (id === tabId) {
+                    section.classList.remove('hidden');
+                    navBtn.classList.add('bg-white', 'text-neutral-text', 'shadow-xs');
+                    navBtn.classList.remove('text-neutral-muted');
+                } else {
+                    section.classList.add('hidden');
+                    navBtn.classList.remove('bg-white', 'text-neutral-text', 'shadow-xs');
+                    navBtn.classList.add('text-neutral-muted');
+                }
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Selección de muestra colorimétrica
+        function setSample(hex, ph, cat) {
+            state.currentColor = hex;
+            state.currentPh = ph;
+            state.category = cat;
+
+            document.getElementById('currentColorLabel').textContent = `Hex: ${hex}`;
+            document.querySelectorAll('.sample-btn').forEach(btn => btn.classList.remove('ring-2', 'ring-mora-700'));
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('ring-2', 'ring-mora-700');
+            }
+
+            updateReport();
+        }
+
+        function updateReport() {
+            const ph = state.currentPh;
+            const phVal = document.getElementById('resultPhValue');
+            const phCat = document.getElementById('resultPhCategory');
+            const title = document.getElementById('resultInterpretationTitle');
+            const text = document.getElementById('resultInterpretationText');
+            const marker = document.getElementById('scaleMarker');
+            const badge = document.getElementById('analysisBadge');
+
+            phVal.textContent = ph.toFixed(1);
+            phCat.textContent = state.category;
+
+            const percentage = Math.max(0, Math.min(100, ((ph - 3.5) / (6.5 - 3.5)) * 100));
+            marker.style.left = `${percentage}%`;
+
+            if (ph <= 4.5) {
+                badge.className = 'text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200';
+                badge.textContent = 'Fisiológico';
+                title.textContent = 'Equilibrio de Flora Preservado';
+                text.textContent = `La tonalidad corresponde a un pH de ${ph.toFixed(1)}, característico de una microbiota con adecuada colonización de lactobacilos en edad fértil.`;
+            } else if (ph <= 5.2) {
+                badge.className = 'text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200';
+                badge.textContent = 'Transición';
+                title.textContent = 'Variación o Tendencia Intermedia';
+                text.textContent = `El valor estimado (${ph.toFixed(1)}) se ubica ligeramente por encima del intervalo ácido clásico. Puede reflejar proximidad al período, actividad postcoital o leve descenso de acidez.`;
+            } else {
+                badge.className = 'text-[11px] font-medium text-mora-800 bg-mora-50 px-2 py-0.5 rounded-full border border-mora-200';
+                badge.textContent = 'Zona Alcalina';
+                title.textContent = 'Acidez Reducida';
+                text.textContent = `Lectura sugerida de pH ${ph.toFixed(1)}. Los valores alcalinos persistentes son habituales en disbiosis. Se aconseja seguimiento profesional si existen síntomas asociados.`;
+            }
+        }
+
+        function runAnalysis() {
+            const overlay = document.getElementById('scanOverlay');
+            overlay.classList.remove('hidden');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                updateReport();
+            }, 600);
+        }
+
+        // Carga de archivos
+        const imgInput = document.getElementById('imageInput');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const previewContainer = document.getElementById('previewContainer');
+        const uploadedImg = document.getElementById('uploadedImage');
+        const btnRemove = document.getElementById('btnRemoveImage');
+
+        imgInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    uploadedImg.src = evt.target.result;
+                    uploadPlaceholder.classList.add('hidden');
+                    previewContainer.classList.remove('hidden');
+                    runAnalysis();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        btnRemove.addEventListener('click', function(e) {
+            e.stopPropagation();
+            imgInput.value = '';
+            uploadedImg.src = '';
+            previewContainer.classList.add('hidden');
+            uploadPlaceholder.classList.remove('hidden');
+        });
+
+        // ========================================================
+        // ASISTENTE DE DIÁLOGO / DRAWER FLOTANTE
+        // ========================================================
+        function toggleAssistantDrawer() {
+            const drawer = document.getElementById('assistantDrawer');
+            state.isDrawerOpen = !state.isDrawerOpen;
+            if (state.isDrawerOpen) {
+                drawer.classList.remove('hidden-state');
+                drawer.classList.add('open-state');
+                orbState.targetMultiplier = 2.4;
+                setTimeout(() => document.getElementById('drawerInput').focus(), 150);
+            } else {
+                drawer.classList.add('hidden-state');
+                drawer.classList.remove('open-state');
+                orbState.targetMultiplier = 1.0;
+            }
+        }
+
+        function openChatWithContext() {
+            if (!state.isDrawerOpen) {
+                toggleAssistantDrawer();
+            }
+            const query = `Mi lectura de pH actual es ${state.currentPh.toFixed(1)} (${state.category}). ¿Qué precauciones me recomiendas tener en cuenta?`;
+            appendMessage(query, 'user');
+            processAssistantResponse(query);
+        }
+
+        function sendPreset(text) {
+            document.getElementById('drawerInput').value = text;
+            handleDrawerSubmit(new Event('submit'));
+        }
+
+        function handleDrawerSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('drawerInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            appendMessage(message, 'user');
+            input.value = '';
+            processAssistantResponse(message);
+        }
+
+        function appendMessage(text, sender) {
+            const container = document.getElementById('drawerMessages');
+            const msgEl = document.createElement('div');
+
+            if (sender === 'user') {
+                msgEl.className = 'flex items-start justify-end max-w-[90%] ml-auto fade-in-up';
+                msgEl.innerHTML = `
+                    <div class="bg-neutral-text text-white rounded-2xl rounded-tr-xs p-3 text-xs leading-relaxed shadow-xs">
+                        ${escapeHtml(text)}
+                    </div>
+                `;
+            } else {
+                msgEl.className = 'flex items-start gap-2.5 max-w-[90%] fade-in-up';
+                msgEl.innerHTML = `
+                    <div class="w-5 h-5 rounded-full bg-mora-700 text-white flex items-center justify-center shrink-0 text-[10px] mt-0.5">
+                        <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <circle cx="12" cy="12" r="9" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="bg-neutral-card rounded-2xl rounded-tl-xs p-3 text-xs text-neutral-text leading-relaxed border border-neutral-border/60">
+                        ${escapeHtml(text)}
+                    </div>
+                `;
+            }
+
+            container.appendChild(msgEl);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function processAssistantResponse(userMsg) {
+            orbState.targetMultiplier = 3.6;
+
+            setTimeout(() => {
+                const lower = userMsg.toLowerCase();
+                let matched = clinicalDialogue.find(item => 
+                    item.triggers.some(trigger => lower.includes(trigger))
+                );
+
+                let reply = matched 
+                    ? matched.reply 
+                    : "Cada organismo presenta variaciones únicas en su microbiota. Recuerda que este indicador de pH es una referencia preventiva; ante cualquier síntoma o molestia persistente, la consulta con tu obstetra o ginecólogo es la vía más segura y oportuna.";
+
+                appendMessage(reply, 'assistant');
+                orbState.targetMultiplier = state.isDrawerOpen ? 1.6 : 1.0;
+            }, 650);
+        }
+
+        function escapeHtml(string) {
+            const div = document.createElement('div');
+            div.textContent = string;
+            return div.innerHTML;
+        }
+
+        // ========================================================
+        // MOTOR GRÁFICO 3D (THREE.JS + SIMPLEX NOISE SHADER)
+        // ORBE FLOTANTE COMPACTO Y DE ALTA DINÁMICA
+        // ========================================================
+        const orbState = {
+            speedMultiplier: 1.0,
+            targetMultiplier: 1.0
+        };
+
+        const canvas = document.getElementById('webglCanvas');
+        const renderer = new THREE.WebGLRenderer({
+            canvas: canvas,
+            antialias: true,
+            alpha: true
+        });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(54, 54);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+        camera.position.z = 2.4;
+
+        // Shaders con deformación procedural y dispersión cromática
+        const vertexShader = `
+            uniform float uTime;
+            uniform float uSpeed;
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            varying float vNoise;
+
+            vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
+            vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+
+            float snoise(vec3 v){
+                const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+                const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+                vec3 i  = floor(v + dot(v, C.yyy));
+                vec3 x0 = v - i + dot(i, C.xxx);
+                vec3 g = step(x0.yzx, x0.xyz);
+                vec3 l = 1.0 - g;
+                vec3 i1 = min(g.xyz, l.zxy);
+                vec3 i2 = max(g.xyz, l.zxy);
+                vec3 x1 = x0 - i1 + 1.0 * C.xxx;
+                vec3 x2 = x0 - i2 + 2.0 * C.xxx;
+                vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
+                i = mod(i, 289.0);
+                vec4 p = permute(permute(permute(
+                            i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                        + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                        + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+                float n_ = 0.142857142857;
+                vec3 ns = n_ * D.wyz - D.xzx;
+                vec4 j = p - 49.0 * floor(p * ns.z *ns.z);
+                vec4 x_ = floor(j * ns.z);
+                vec4 y_ = floor(j - 7.0 * x_);
+                vec4 x = x_ *ns.x + ns.yyyy;
+                vec4 y = y_ *ns.x + ns.yyyy;
+                vec4 h = 1.0 - abs(x) - abs(y);
+                vec4 b0 = vec4(x.xy, y.xy);
+                vec4 b1 = vec4(x.zw, y.zw);
+                vec4 s0 = floor(b0)*2.0 + 1.0;
+                vec4 s1 = floor(b1)*2.0 + 1.0;
+                vec4 sh = -step(h, vec4(0.0));
+                vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+                vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+                vec3 p0 = vec3(a0.xy, h.x);
+                vec3 p1 = vec3(a0.zw, h.y);
+                vec3 p2 = vec3(a1.xy, h.z);
+                vec3 p3 = vec3(a1.zw, h.w);
+                vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+                p0 *= norm.x;
+                p1 *= norm.y;
+                p2 *= norm.z;
+                p3 *= norm.w;
+                vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                m = m * m;
+                return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+            }
+
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vPosition = position;
+                
+                // Efecto de gota/amiba biológica y deformación asimétrica
+                float wave1 = snoise(position * 1.6 + vec3(uTime * 0.7 * uSpeed, uTime * 0.4 * uSpeed, 0.0));
+                float wave2 = snoise(position * 3.1 - vec3(0.0, uTime * 0.8 * uSpeed, uTime * 0.5 * uSpeed));
+                float wave3 = sin(position.y * 3.0 + uTime * 1.5 * uSpeed) * 0.2;
+                
+                vNoise = wave1 * 0.55 + wave2 * 0.35 + wave3 * 0.1;
+                
+                // Desplazamiento no uniforme para perder la forma esférica rígida
+                vec3 displacementDirection = normalize(normal + vec3(wave1 * 0.4, wave2 * 0.4, 0.0));
+                vec3 newPosition = position + displacementDirection * (vNoise * 0.45);
+                
+                // Aplastamiento elástico leve en los polos
+                newPosition.y *= 0.92 + 0.1 * sin(uTime * 1.2 * uSpeed);
+
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            uniform float uTime;
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            varying float vNoise;
+
+            void main() {
+                // Paleta Obstetricia: Ciruela Oscuro (#2E0514), Mora (#8E1746) y Neón (#DE4584)
+                vec3 deepVino = vec3(0.24, 0.03, 0.11);
+                vec3 moraObstetra = vec3(0.56, 0.09, 0.27);
+                vec3 brightMagenta = vec3(0.91, 0.27, 0.54);
+                vec3 lightGlow = vec3(1.0, 0.88, 0.94);
+
+                vec3 viewDirection = normalize(-vPosition);
+                float fresnel = 1.0 - max(dot(viewDirection, vNormal), 0.0);
+                fresnel = pow(fresnel, 2.0);
+
+                // Gradación de color interna fluida
+                vec3 baseColor = mix(deepVino, moraObstetra, vNoise + 0.5);
+                baseColor = mix(baseColor, brightMagenta, fresnel * 0.85);
+                baseColor += lightGlow * pow(fresnel, 4.0) * 0.7;
+
+                gl_FragColor = vec4(baseColor, 1.0);
+            }
+        `;
+
+        const geometry = new THREE.SphereGeometry(0.72, 64, 64);
+        const uniforms = {
+            uTime: { value: 0.0 },
+            uSpeed: { value: 1.0 }
+        };
+
+        const material = new THREE.ShaderMaterial({
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            uniforms: uniforms
+        });
+
+        const orbMesh = new THREE.Mesh(geometry, material);
+        scene.add(orbMesh);
+
+        // Reacción al puntero sobre el orbe
+        const orbBtn = document.getElementById('floatingOrbBtn');
+        orbBtn.addEventListener('mouseenter', () => {
+            orbState.targetMultiplier = 2.8;
+        });
+        orbBtn.addEventListener('mouseleave', () => {
+            orbState.targetMultiplier = state.isDrawerOpen ? 1.6 : 1.0;
+        });
+
+        // Bucle de renderizado
+        const clock = new THREE.Clock();
+
+        function animateOrb() {
+            requestAnimationFrame(animateOrb);
+
+            const delta = clock.getDelta();
+            
+            // Suavizado cinético (LERP) de la velocidad
+            orbState.speedMultiplier += (orbState.targetMultiplier - orbState.speedMultiplier) * 0.12;
+            
+            uniforms.uTime.value += delta * 2.2 * orbState.speedMultiplier;
+            uniforms.uSpeed.value = orbState.speedMultiplier;
+
+            orbMesh.rotation.y += delta * 0.8 * orbState.speedMultiplier;
+            orbMesh.rotation.x += delta * 0.4 * orbState.speedMultiplier;
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            animateOrb();
+        };
+    </script>
+</body>
+</html>
