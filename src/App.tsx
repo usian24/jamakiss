@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Eye, EyeOff, FlaskConical, MapPin, MessageCircleHeart, ShieldCheck } from 'lucide-react';
+import { BookOpen, Download, Eye, EyeOff, FlaskConical, MapPin, MessageCircleHeart, ShieldCheck } from 'lucide-react';
 import { AnalyzerModule } from './components/AnalyzerModule';
 import { HealthCentersModule } from './components/HealthCentersModule';
 import { GuideAndTechModule } from './components/GuideAndTechModule';
@@ -17,10 +17,16 @@ import {
 
 type ActiveTab = 'analyzer' | 'centers' | 'guide';
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('analyzer');
   const [discreetMode, setDiscreetMode] = useState(false);
   const [geminiEnabled, setGeminiEnabled] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   const [triageInput, setTriageInput] = useState<TriageInput>({
     zoneId: 'normal',
@@ -36,6 +42,25 @@ export function App() {
 
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [sheetCenterName, setSheetCenterName] = useState<string | undefined>(undefined);
+
+  // Escuchar evento de instalación PWA (Android Chrome / Brave / Edge)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
 
   // Verificar si el servidor API tiene Gemini configurado
   useEffect(() => {
@@ -149,24 +174,37 @@ export function App() {
             </button>
           </nav>
 
-          {/* Toggle sutil de Modo Discreto (oculta textos sensibles manteniendo el logo) */}
-          <button
-            type="button"
-            onClick={() => setDiscreetMode((v) => !v)}
-            title={
-              discreetMode
-                ? 'Modo discreto activo: oculta textos llamativos o sensibles'
-                : 'Activar modo discreto para ocultar textos llamativos en pantalla'
-            }
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border transition-colors shrink-0 ${
-              discreetMode
-                ? 'bg-[#28161C] text-white border-[#28161C]'
-                : 'bg-white text-[#6A4F59] border-[#EAE0E3] hover:border-[#C89AA9]'
-            }`}
-          >
-            {discreetMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            <span>{discreetMode ? 'Discreto' : 'Modo discreto'}</span>
-          </button>
+          {/* Acciones derechas: Instalar PWA (si aplica) + Modo Discreto */}
+          <div className="flex items-center gap-2 shrink-0">
+            {installPrompt && (
+              <button
+                type="button"
+                onClick={handleInstallApp}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-[#8E1436] hover:bg-[#72112E] text-white shadow-2xs transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Instalar app</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setDiscreetMode((v) => !v)}
+              title={
+                discreetMode
+                  ? 'Modo discreto activo: oculta textos llamativos o sensibles'
+                  : 'Activar modo discreto para ocultar textos llamativos en pantalla'
+              }
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border transition-colors ${
+                discreetMode
+                  ? 'bg-[#28161C] text-white border-[#28161C]'
+                  : 'bg-white text-[#6A4F59] border-[#EAE0E3] hover:border-[#C89AA9]'
+              }`}
+            >
+              {discreetMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{discreetMode ? 'Discreto' : 'Modo discreto'}</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -273,8 +311,8 @@ export function App() {
         </div>
       </nav>
 
-      {/* Orbe 3D Flotante (encima de la barra móvil y oculto cuando el chat está abierto en celular) */}
-      <aside className={`fixed bottom-20 right-4 sm:bottom-5 sm:right-5 z-40 ${isDrawerOpen ? 'hidden sm:block' : 'block'}`}>
+      {/* Orbe 3D Flotante en tablet/PC (en celular se abre desde la pestaña Chat para no tapar botones) */}
+      <aside className="hidden sm:block fixed bottom-5 right-5 z-40">
         <JamaKissOrb
           zoneId={triageInput.zoneId}
           isOpen={isDrawerOpen}

@@ -310,8 +310,18 @@ ${hintLine}`;
 
 // Servir el frontend compilado (dist/) en producción (ej. Render.com)
 if (fs.existsSync(path.join(distDir, 'index.html'))) {
-  app.use(express.static(distDir, { maxAge: '1d' }));
+  app.use(
+    express.static(distDir, {
+      maxAge: '1d',
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('sw.js') || filePath.endsWith('manifest.webmanifest') || filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    })
+  );
   app.get(/^\/(?!api\/).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(distDir, 'index.html'));
   });
 }

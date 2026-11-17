@@ -447,14 +447,16 @@ export const AnalyzerModule: React.FC<AnalyzerModuleProps> = ({
                 />
 
                 {/* Ilustración visual amigable (no real) de cómo fotografiar la gota */}
-                <div className="flex items-center gap-3.5 mb-3">
-                  <div className="w-16 h-12 rounded-xl bg-white border border-[#E8D5DC] shadow-2xs flex items-center justify-center relative">
-                    <span className="w-5 h-5 rounded-full bg-gradient-to-br from-[#FF1A66] to-[#8E1436] shadow-inner" />
-                    <span className="absolute -bottom-1.5 text-[9px] font-medium bg-[#FAF8F5] px-1.5 rounded text-[#7D3252] border border-[#EFE2E6]">
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-14 h-11 rounded-xl bg-white border border-[#E8D5DC] shadow-2xs flex items-center justify-center">
+                      <span className="w-5 h-5 rounded-full bg-gradient-to-br from-[#FF1A66] to-[#8E1436] shadow-inner" />
+                    </div>
+                    <span className="text-[10px] font-medium text-[#7A616A] whitespace-nowrap">
                       Papel blanco
                     </span>
                   </div>
-                  <div className="w-11 h-11 rounded-2xl bg-[#FCE8EF] border border-[#F7CDDC] flex items-center justify-center text-[#8E1436]">
+                  <div className="w-11 h-11 rounded-2xl bg-[#FCE8EF] border border-[#F7CDDC] flex items-center justify-center text-[#8E1436] mb-3.5">
                     <Camera className="w-5 h-5" />
                   </div>
                 </div>
